@@ -1,180 +1,264 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Balloon Integer Game</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🎈 Integer Balloon Game</title>
 <style>
-  body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    text-align: center;
-    background: linear-gradient(270deg, #ff9a9e, #fad0c4, #fbc2eb, #a6c1ee);
-    background-size: 800% 800%;
-    animation: gradientBG 20s ease infinite;
-    overflow: hidden;
-    height: 100vh;
-  }
-  @keyframes gradientBG {
-    0% {background-position:0% 50%}
-    50% {background-position:100% 50%}
-    100% {background-position:0% 50%}
-  }
-  #gameContainer {
-    position: relative;
-    width: 100%;
-    height: 90vh;
-    overflow: hidden;
-  }
-  .balloon {
-    position: absolute;
-    bottom: -100px;
-    width: 80px;
-    height: 100px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    animation: floatUp 8s linear forwards;
-  }
-  @keyframes floatUp {
-    from {bottom: -120px;}
-    to {bottom: 100vh;}
-  }
-  #question {
-    font-size: 28px;
-    margin: 15px;
-    font-weight: bold;
-    color: #333;
-  }
-  #score {
-    font-size: 22px;
-    margin: 10px;
-  }
-  #restart {
-    padding: 10px 20px;
-    font-size: 18px;
-    margin-top: 10px;
-    cursor: pointer;
-    background: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 6px;
-  }
-  #restart:hover {
-    background: #45a049;
-  }
-  #feedback {
-    font-size: 20px;
-    font-weight: bold;
-    margin-top: 10px;
-    color: #222;
-  }
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  background: linear-gradient(270deg, #ff9a9e, #fad0c4, #fbc2eb, #a6c1ee);
+  background-size: 800% 800%;
+  animation: gradientBG 20s ease infinite;
+  overflow: hidden;
+  height: 100vh;
+}
+@keyframes gradientBG {
+  0% {background-position:0% 50%}
+  50% {background-position:100% 50%}
+  100% {background-position:0% 50%}
+}
+
+h1 { margin: 10px 0; }
+#gameContainer { position: relative; width: 100%; height: 72vh; overflow: hidden; }
+.balloon {
+  position: absolute;
+  bottom: -120px;
+  width: 110px;
+  height: 140px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 2.2em;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+}
+#question { font-size: 28px; margin: 8px; font-weight: bold; color: #222; }
+#score { font-size: 20px; margin: 6px; color:#222; }
+.controls { margin: 8px; display:flex; gap:8px; justify-content:center; }
+button {
+  padding: 10px 16px;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 6px;
+  border: none;
+  background: #1976d2;
+  color: white;
+  font-weight: bold;
+}
+button:hover { background:#125ea8; }
+#feedback { font-size: 20px; margin-top: 8px; min-height: 26px; }
+.spark {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.95;
+  animation: explode 2.2s forwards;
+}
+@keyframes explode {
+  from { transform: translate(0,0) scale(1); opacity:1; }
+  to   { transform: translate(var(--x), var(--y)) scale(0.2); opacity:0; }
+}
 </style>
 </head>
 <body>
-  <h1>🎈 Integer Balloon Game 🎈</h1>
-  <div id="question">Press Restart to Begin!</div>
-  <div id="score">Score: 0</div>
-  <button id="restart">Restart Game</button>
-  <div id="feedback"></div>
-  <div id="gameContainer"></div>
+<h1>🎈 Integer Balloon Game</h1>
+<div id="question">Press Restart to Begin!</div>
+<div id="score">Score: 0</div>
+<div class="controls">
+  <button id="restartBtn">Restart</button>
+  <button id="pauseBtn">Pause</button>
+  <button id="resumeBtn">Resume</button>
+  <button id="stopBtn">Stop</button>
+</div>
+<div id="feedback"></div>
+<div id="gameContainer"></div>
 
 <script>
+const FLOAT_DURATION = 8000;
+const FIREWORK_SPARKS = 140;
+const FIREWORK_MAX_DIST = 280;
+const FIREWORK_MIN_DIST = 40;
 let score = 0;
 let currentAnswer = null;
-let balloonTimeouts = [];
 let gameActive = false;
+let paused = false;
+let balloonMetas = [];
 
-const questionEl = document.getElementById("question");
-const scoreEl = document.getElementById("score");
-const gameContainer = document.getElementById("gameContainer");
-const feedbackEl = document.getElementById("feedback");
-const restartBtn = document.getElementById("restart");
+const questionEl = document.getElementById('question');
+const scoreEl = document.getElementById('score');
+const feedbackEl = document.getElementById('feedback');
+const gameContainer = document.getElementById('gameContainer');
+const restartBtn = document.getElementById('restartBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const resumeBtn = document.getElementById('resumeBtn');
+const stopBtn = document.getElementById('stopBtn');
 
-// Generate random integer addition/subtraction question
-function generateQuestion() {
-  const num1 = Math.floor(Math.random() * 41) - 20; // -20 to +20
-  const num2 = Math.floor(Math.random() * 41) - 20; // -20 to +20
-  const ops = ["+", "-"];
-  const op = ops[Math.floor(Math.random() * ops.length)];
-  
-  let correct;
-  if (op === "+") {
-    correct = num1 + num2;
-  } else {
-    correct = num1 - num2;
-  }
+const cheer = new Audio("https://actions.google.com/sounds/v1/human_voices/applause.ogg");
+const fail = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
 
-  questionEl.textContent = `Solve: ${num1} ${op} ${num2}`;
-  currentAnswer = correct;
+function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 
-  createBalloons(correct);
+function clearBalloonMetas(){
+  balloonMetas.forEach(m=>{
+    if(m.timeoutId) clearTimeout(m.timeoutId);
+    if(m.balloon && m.balloon.parentNode) m.balloon.remove();
+  });
+  balloonMetas = [];
 }
 
-// Create balloons with possible answers
-function createBalloons(correct) {
+function setFeedback(text, color="black"){
+  feedbackEl.textContent = text;
+  feedbackEl.style.color = color;
+}
+
+function generateQuestion(){
+  const num1 = randInt(-20,20);
+  const num2 = randInt(-20,20);
+  const ops = ['+','-'];
+  const op = ops[randInt(0, ops.length-1)];
+  currentAnswer = (op === '+') ? num1 + num2 : num1 - num2;
+  questionEl.textContent = `Solve: ${num1} ${op} ${num2}`;
+  spawnBalloons(currentAnswer);
+}
+
+function spawnBalloons(correct){
+  clearBalloonMetas();
   gameContainer.innerHTML = "";
-  balloonTimeouts.forEach(clearTimeout);
-  balloonTimeouts = [];
 
-  let answers = [correct];
-  while (answers.length < 4) {
-    let wrong = correct + Math.floor(Math.random() * 11) - 5; // near wrong answer
-    if (!answers.includes(wrong)) answers.push(wrong);
+  const answers = [correct];
+  while(answers.length<4){
+    const wrong = correct + randInt(-6,6);
+    if(!answers.includes(wrong)) answers.push(wrong);
   }
-  answers = answers.sort(() => Math.random() - 0.5);
+  answers.sort(()=>Math.random()-0.5);
 
-  answers.forEach((ans, i) => {
-    const balloon = document.createElement("div");
-    balloon.className = "balloon";
+  answers.forEach((ans, idx) => {
+    const balloon = document.createElement('div');
+    balloon.className = 'balloon';
     balloon.textContent = ans;
-    balloon.style.left = `${20 + i * 20}%`;
-    balloon.style.background = ["red","blue","green","purple"][i % 4];
+    balloon.style.left = `${12+idx*22}%`;
+    const colors = ['#ff6b6b','#4d8cff','#4caf50','#a86aff'];
+    balloon.style.background = colors[idx%colors.length];
 
-    balloon.addEventListener("click", () => {
-      if (!gameActive) return;
-      if (ans === currentAnswer) {
-        score++;
-        feedbackEl.textContent = "🎉 Correct! 🎉";
-        feedbackEl.style.color = "green";
-      } else {
-        score--;
-        feedbackEl.textContent = "❌ Wrong! ❌";
-        feedbackEl.style.color = "red";
-      }
-      scoreEl.textContent = `Score: ${score}`;
-      generateQuestion();
+    const startTime = Date.now();
+    balloon.style.bottom = "-120px";
+    let floatAnimation = balloon.animate([{bottom: '-120px'}, {bottom: '100vh'}], {duration: FLOAT_DURATION, fill:'forwards'});
+
+    const meta = {balloon, ans, startTime, animation: floatAnimation, remaining: FLOAT_DURATION, timeoutId:null};
+
+    balloon.addEventListener('click', () => {
+      if(!gameActive || paused) return;
+      handleBalloonClick(meta);
     });
 
-    gameContainer.appendChild(balloon);
-
-    // If balloon floats away
-    const timeout = setTimeout(() => {
-      if (ans === correct && gameActive) {
-        score--;
-        feedbackEl.textContent = "💨 Missed the correct answer!";
-        feedbackEl.style.color = "orange";
-        scoreEl.textContent = `Score: ${score}`;
-        generateQuestion();
+    meta.timeoutId = setTimeout(() => {
+      if(!gameActive) return;
+      if(meta.ans===currentAnswer){
+        score--; scoreEl.textContent=`Score: ${score}`;
+        setFeedback('💨 Missed the correct answer!', 'orange');
+        clearBalloonMetas();
+        setTimeout(()=>{if(gameActive) generateQuestion();},600);
+      } else {
+        if(meta.balloon.parentNode) meta.balloon.remove();
+        balloonMetas = balloonMetas.filter(m=>m!==meta);
       }
-    }, 8000);
+    }, FLOAT_DURATION);
 
-    balloonTimeouts.push(timeout);
+    balloonMetas.push(meta);
+    gameContainer.appendChild(balloon);
   });
 }
 
-// Restart the game
-restartBtn.addEventListener("click", () => {
-  score = 0;
-  scoreEl.textContent = "Score: 0";
-  feedbackEl.textContent = "";
-  gameActive = true;
+function handleBalloonClick(meta){
+  if(!gameActive || paused) return;
+  if(meta.timeoutId) clearTimeout(meta.timeoutId);
+  if(meta.ans === currentAnswer){
+    score++; scoreEl.textContent=`Score: ${score}`;
+    setFeedback('🎉 Correct! 🎉','green');
+    cheer.currentTime=0; cheer.play();
+    launchFireworks(meta.balloon);
+    clearBalloonMetas();
+    setTimeout(()=>{if(gameActive) generateQuestion();},900);
+  } else {
+    setFeedback('❌ Wrong! ❌','red');
+    fail.currentTime=0; fail.play();
+    meta.balloon.style.transition='transform 0.25s, opacity 0.25s';
+    meta.balloon.style.transform='scale(0.2)';
+    meta.balloon.style.opacity='0';
+    setTimeout(()=>{ if(meta.balloon.parentNode) meta.balloon.remove(); balloonMetas=balloonMetas.filter(m=>m!==meta);},260);
+  }
+}
+
+function launchFireworks(target){
+  const rect = target.getBoundingClientRect();
+  const centerX = rect.left + rect.width/2;
+  const centerY = rect.top + rect.height/2;
+  for(let i=0;i<FIREWORK_SPARKS;i++){
+    const spark = document.createElement('div');
+    spark.className='spark';
+    const angle=Math.random()*2*Math.PI;
+    const dist=Math.random()*(FIREWORK_MAX_DIST-FIREWORK_MIN_DIST)+FIREWORK_MIN_DIST;
+    spark.style.setProperty('--x', `${Math.cos(angle)*dist}px`);
+    spark.style.setProperty('--y', `${Math.sin(angle)*dist}px`);
+    spark.style.left=centerX+'px';
+    spark.style.top=centerY+'px';
+    spark.style.background=`hsl(${Math.random()*360},100%,60%)`;
+    document.body.appendChild(spark);
+    setTimeout(()=>spark.remove(),2300);
+  }
+}
+
+/* Controls */
+restartBtn.addEventListener('click', ()=>{
+  score=0; gameActive=true; paused=false; scoreEl.textContent=`Score: ${score}`; setFeedback('');
+  clearBalloonMetas();
   generateQuestion();
+});
+pauseBtn.addEventListener('click', ()=>{
+  paused=true; setFeedback('⏸ Paused','blue');
+  balloonMetas.forEach(m=>{
+    const rect = m.balloon.getBoundingClientRect();
+    m.remaining = m.remaining - (Date.now()-m.startTime);
+    m.animation.pause();
+    if(m.timeoutId) clearTimeout(m.timeoutId);
+  });
+});
+resumeBtn.addEventListener('click', ()=>{
+  paused=false; setFeedback('▶ Resumed','green');
+  balloonMetas.forEach(m=>{
+    m.startTime=Date.now();
+    m.animation.play();
+    m.timeoutId=setTimeout(()=>{
+      if(!gameActive) return;
+      if(m.ans===currentAnswer){
+        score--; scoreEl.textContent=`Score: ${score}`;
+        setFeedback('💨 Missed the correct answer!', 'orange');
+        clearBalloonMetas();
+        setTimeout(()=>{if(gameActive) generateQuestion();},600);
+      } else {
+        if(m.balloon.parentNode) m.balloon.remove();
+        balloonMetas = balloonMetas.filter(mm=>mm!==m);
+      }
+    }, m.remaining);
+  });
+});
+stopBtn.addEventListener('click', ()=>{
+  gameActive=false; paused=false;
+  clearBalloonMetas();
+  gameContainer.innerHTML='';
+  setFeedback('🛑 Game stopped','black');
+  questionEl.textContent='Press Restart to Begin!';
 });
 </script>
 </body>
 </html>
+
+
