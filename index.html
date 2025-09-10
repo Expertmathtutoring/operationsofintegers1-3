@@ -83,8 +83,8 @@ button:hover { background:#125ea8; }
 
 <script>
 const FLOAT_DURATION = 8000;
-const FIREWORK_SPARKS = 140;
-const FIREWORK_MAX_DIST = 280;
+const FIREWORK_SPARKS = 120;
+const FIREWORK_MAX_DIST = 220;
 const FIREWORK_MIN_DIST = 40;
 let score = 0;
 let currentAnswer = null;
@@ -101,8 +101,16 @@ const pauseBtn = document.getElementById('pauseBtn');
 const resumeBtn = document.getElementById('resumeBtn');
 const stopBtn = document.getElementById('stopBtn');
 
-const cheer = new Audio("https://actions.google.com/sounds/v1/human_voices/applause.ogg");
-const fail = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+/* --- Sounds (fixed with clapping) --- */
+const cheer = new Audio("https://actions.google.com/sounds/v1/human_voices/applause.ogg"); // cheering + clapping
+const crowd = new Audio("https://actions.google.com/sounds/v1/ambiences/crowd_celebration.ogg"); // celebration
+const clapping = new Audio("https://www.soundjay.com/human/applause-8.mp3"); // 👏 extra clapping
+const fail = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"); // fail sound
+
+[cheer, crowd, clapping, fail].forEach(a => { 
+  a.preload = "auto"; 
+  a.volume = 0.9; 
+});
 
 function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 
@@ -183,10 +191,13 @@ function handleBalloonClick(meta){
   if(meta.ans === currentAnswer){
     score++; scoreEl.textContent=`Score: ${score}`;
     setFeedback('🎉 Correct! 🎉','green');
-    cheer.currentTime=0; cheer.play();
+
+    // Play real applause + cheering
+    [cheer, crowd, clapping].forEach(s => { s.currentTime=0; s.play(); });
+
     launchFireworks(meta.balloon);
     clearBalloonMetas();
-    setTimeout(()=>{if(gameActive) generateQuestion();},900);
+    setTimeout(()=>{if(gameActive) generateQuestion();},1400);
   } else {
     setFeedback('❌ Wrong! ❌','red');
     fail.currentTime=0; fail.play();
@@ -225,7 +236,6 @@ restartBtn.addEventListener('click', ()=>{
 pauseBtn.addEventListener('click', ()=>{
   paused=true; setFeedback('⏸ Paused','blue');
   balloonMetas.forEach(m=>{
-    const rect = m.balloon.getBoundingClientRect();
     m.remaining = m.remaining - (Date.now()-m.startTime);
     m.animation.pause();
     if(m.timeoutId) clearTimeout(m.timeoutId);
@@ -260,5 +270,6 @@ stopBtn.addEventListener('click', ()=>{
 </script>
 </body>
 </html>
+
 
 
